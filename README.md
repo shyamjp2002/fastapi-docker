@@ -89,6 +89,28 @@ On every push to `main`, GitHub Actions does:
 Workflow file:
 - `.github/workflows/deploy.yml`
 
+### Deployment Sequence (Detailed)
+
+The workflow has 2 jobs:
+
+1. `build` job (`Build Container`)
+- Checks out the repository
+- Authenticates to Google Cloud using `GCP_SA_KEY`
+- Sets up `gcloud`
+- Configures Docker auth for Artifact Registry:
+  - `${GCP_REGION}-docker.pkg.dev`
+- Builds and pushes the image with Buildx
+- Uses Git commit SHA as image tag:
+  - `${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPO}/${GCP_IMAGE_NAME}:${github.sha}`
+
+2. `deploy` job (`Deploy Application`)
+- Runs only after `build` succeeds (`needs: build`)
+- Authenticates to Google Cloud again
+- Deploys the exact same SHA-tagged image to Cloud Run:
+  - `gcloud run deploy ${GCP_SERVICE_NAME} ... --region ${GCP_REGION} --platform managed --allow-unauthenticated`
+
+This makes deployments traceable because each Cloud Run revision maps to a specific commit SHA.
+
 ### Required GitHub Secrets
 
 Set these repository secrets before deployment:
@@ -98,6 +120,12 @@ Set these repository secrets before deployment:
 - `GCP_ARTIFACT_REPO`
 - `GCP_IMAGE_NAME`
 - `GCP_SERVICE_NAME`
+
+Recommended values:
+- `GCP_REGION`: e.g. `us-central1`
+- `GCP_ARTIFACT_REPO`: existing Artifact Registry Docker repository name
+- `GCP_IMAGE_NAME`: image name for this app (e.g. `fastapi-learning`)
+- `GCP_SERVICE_NAME`: Cloud Run service name (e.g. `fastapi-learning-svc`)
 
 ## Learning Goals
 
